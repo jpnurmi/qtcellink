@@ -23,6 +23,7 @@
 #include <QtQml/qqml.h>
 #include <QtCore/qloggingcategory.h>
 
+#include "combobox.h"
 #include "doublespinbox.h"
 #include "titleseparator.h"
 
@@ -49,6 +50,7 @@ CellinkTemplatesPlugin::CellinkTemplatesPlugin(QObject *parent) : QQmlExtensionP
 
 void CellinkTemplatesPlugin::registerTypes(const char *uri)
 {
+    qmlRegisterType<ComboBox>(uri, 1, 0, "ComboBox");
     qmlRegisterType<DoubleSpinBox>(uri, 1, 0, "DoubleSpinBox");
     qmlRegisterType<DoubleSpinButton>();
     qmlRegisterType<TitleSeparator>(uri, 1, 0, "TitleSeparator");

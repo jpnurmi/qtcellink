@@ -63,6 +63,7 @@ static bool useNative()
 
 void CellinkControlsPlugin::registerTypes(const char *uri)
 {
+    qmlRegisterType(typeUrl(QStringLiteral("ComboBox.qml")), uri, 1, 0, "ComboBox");
     qmlRegisterType(typeUrl(QStringLiteral("DoubleSpinBox.qml")), uri, 1, 0, "DoubleSpinBox");
     qmlRegisterType(typeUrl(QStringLiteral("SplitView.qml")), uri, 1, 0, "SplitView");
     qmlRegisterType(typeUrl(QStringLiteral("TitleSeparator.qml")), uri, 1, 0, "TitleSeparator");
