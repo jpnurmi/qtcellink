@@ -93,10 +93,16 @@ QPlatformMenu * NativeMenu::create()
         qCInfo(lcMenus) << "Menu ->" << m_handle;
 
         if (m_handle) {
-            connect(m_handle, &QPlatformMenu::aboutToShow, this, &NativeMenu::aboutToShow);
-            connect(m_handle, &QPlatformMenu::aboutToHide, this, &NativeMenu::aboutToHide);
-            connect(m_handle, &QPlatformMenu::aboutToShow, this, &NativeMenu::opened);
-            connect(m_handle, &QPlatformMenu::aboutToHide, this, &NativeMenu::closed);
+            connect(m_handle, &QPlatformMenu::aboutToShow, [=]() {
+                m_open = true;
+                emit aboutToShow();
+                emit opened();
+            });
+            connect(m_handle, &QPlatformMenu::aboutToHide, [=]() {
+                m_open = false;
+                emit aboutToHide();
+                emit close();
+            });
 
             for (NativeMenuItem *item : qAsConst(m_items))
                 m_handle->insertMenuItem(item->create(), nullptr);
@@ -130,7 +136,6 @@ void NativeMenu::sync()
 
     m_handle->setText(m_title);
     m_handle->setEnabled(m_enabled);
-    m_handle->setVisible(m_visible);
     m_handle->setMinimumWidth(m_minimumWidth);
     m_handle->setFont(m_font);
 
@@ -212,6 +217,11 @@ void NativeMenu::setEnabled(bool enabled)
     m_enabled = enabled;
     sync();
     emit enabledChanged();
+}
+
+bool NativeMenu::isOpen() const
+{
+    return m_open;
 }
 
 bool NativeMenu::isVisible() const
@@ -298,6 +308,11 @@ void NativeMenu::setIcon(const QQuickIcon &icon)
 
     iconLoader()->setIcon(icon);
     emit iconChanged();
+}
+
+NativeMenuItem *NativeMenu::itemAt(int index) const
+{
+    return m_items.value(index);
 }
 
 void NativeMenu::addItem(NativeMenuItem *item)
@@ -409,11 +424,8 @@ void NativeMenu::clear()
     emit itemsChanged();
 }
 
-void NativeMenu::popup(QQmlV4Function *args)
+void NativeMenu::open(QQmlV4Function *args)
 {
-    if (!m_handle)
-        return;
-
     if (args->length() > 2) {
         args->v4engine()->throwTypeError();
         return;
@@ -437,6 +449,14 @@ void NativeMenu::popup(QQmlV4Function *args)
         if (object)
             menuItem = qobject_cast<NativeMenuItem *>(object->object());
     }
+
+    popup(targetItem, menuItem);
+}
+
+void NativeMenu::popup(QQuickItem *targetItem, NativeMenuItem *menuItem)
+{
+    if (!m_handle)
+        return;
 
     QPoint offset;
     QWindow *window = findWindow(targetItem, &offset);

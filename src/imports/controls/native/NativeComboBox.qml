@@ -27,9 +27,10 @@ import QtQuick.Controls 2.4
 import QtQuick.Controls.impl 2.4
 import QtQuick.Controls.Fusion 2.4
 import QtQuick.Controls.Fusion.impl 2.4
-import Cellink.Templates 1.0 as C
+import Cellink.Templates 1.0 as CT
+import Cellink.Controls 1.0 as CC
 
-C.ComboBox {
+CT.ComboBox {
     id: control
 
     implicitWidth: Math.max(background ? background.implicitWidth : 0,
@@ -42,11 +43,8 @@ C.ComboBox {
     leftPadding: padding + (!control.mirrored || !indicator || !indicator.visible ? 0 : indicator.width + spacing)
     rightPadding: padding + (control.mirrored || !indicator || !indicator.visible ? 0 : indicator.width + spacing)
 
-    delegate: MenuItem {
-        width: parent.width
+    delegate: CC.MenuItem {
         text: control.textRole ? (Array.isArray(control.model) ? modelData[control.textRole] : model[control.textRole]) : modelData
-        highlighted: control.highlightedIndex === index
-        hoverEnabled: control.hoverEnabled
     }
 
     indicator: ColorImage {
@@ -126,37 +124,12 @@ C.ComboBox {
         highlighted: control.visualFocus || control.contentItem.activeFocus
     }
 
-    popup: T.Popup {
-        width: control.width
-        height: Math.min(contentItem.implicitHeight + 2, control.Window.height - topMargin - bottomMargin)
-        topMargin: 6
-        bottomMargin: 6
-        palette: control.palette
-        padding: 1
-
-        contentItem: ListView {
-            clip: true
-            implicitHeight: contentHeight
+    popup: CC.Menu {
+        minimumWidth: control.width
+        Instantiator {
             model: control.delegateModel
-            currentIndex: control.highlightedIndex
-            highlightRangeMode: ListView.ApplyRange
-            highlightMoveDuration: 0
-
-            T.ScrollBar.vertical: ScrollBar { }
-        }
-
-        background: Rectangle {
-            color: popup.palette.window
-            border.color: Fusion.outline(control.palette)
-
-            Rectangle {
-                z: -1
-                x: 1; y: 1
-                width: parent.width
-                height: parent.height
-                color: control.palette.shadow
-                opacity: 0.2
-            }
+            onObjectAdded: popup.insertItem(index, object)
+            onObjectRemoved: popup.removeItem(object)
         }
     }
 }

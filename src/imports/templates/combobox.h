@@ -26,7 +26,6 @@
 #include <QtQuickTemplates2/private/qquickcontrol_p.h>
 
 class QValidator;
-class QQuickPopup;
 class QQmlInstanceModel;
 class ComboBoxPrivate;
 
@@ -44,7 +43,7 @@ class ComboBox : public QQuickControl
     Q_PROPERTY(QString textRole READ textRole WRITE setTextRole NOTIFY textRoleChanged FINAL)
     Q_PROPERTY(QQmlComponent *delegate READ delegate WRITE setDelegate NOTIFY delegateChanged FINAL)
     Q_PROPERTY(QQuickItem *indicator READ indicator WRITE setIndicator NOTIFY indicatorChanged FINAL)
-    Q_PROPERTY(QQuickPopup *popup READ popup WRITE setPopup NOTIFY popupChanged FINAL)
+    Q_PROPERTY(QObject *popup READ popup WRITE setPopup NOTIFY popupChanged FINAL)
     Q_PROPERTY(bool flat READ isFlat WRITE setFlat NOTIFY flatChanged FINAL)
     Q_PROPERTY(bool down READ isDown WRITE setDown RESET resetDown NOTIFY downChanged FINAL)
     Q_PROPERTY(bool editable READ isEditable WRITE setEditable NOTIFY editableChanged FINAL)
@@ -87,8 +86,8 @@ public:
     QQuickItem *indicator() const;
     void setIndicator(QQuickItem *indicator);
 
-    QQuickPopup *popup() const;
-    void setPopup(QQuickPopup *popup);
+    QObject *popup() const;
+    void setPopup(QObject *popup);
 
     Q_INVOKABLE QString textAt(int index) const;
     Q_INVOKABLE int find(const QString &text, Qt::MatchFlags flags = Qt::MatchExactly) const;

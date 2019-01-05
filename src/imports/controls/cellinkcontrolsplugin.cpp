@@ -43,7 +43,7 @@ CellinkControlsPlugin::CellinkControlsPlugin(QObject *parent)
 {
 }
 
-static bool useNative()
+static bool useNativeMenus()
 {
     QCommandLineParser cmdLine;
     QCommandLineOption nativeOption(QStringLiteral("native"));
@@ -61,14 +61,22 @@ static bool useNative()
 #endif
 }
 
+static bool useNativeComboBox()
+{
+#if defined(Q_OS_MACOS)
+    return useNativeMenus();
+#else
+    return false;
+#endif
+}
+
 void CellinkControlsPlugin::registerTypes(const char *uri)
 {
-    qmlRegisterType(typeUrl(QStringLiteral("ComboBox.qml")), uri, 1, 0, "ComboBox");
     qmlRegisterType(typeUrl(QStringLiteral("DoubleSpinBox.qml")), uri, 1, 0, "DoubleSpinBox");
     qmlRegisterType(typeUrl(QStringLiteral("SplitView.qml")), uri, 1, 0, "SplitView");
     qmlRegisterType(typeUrl(QStringLiteral("TitleSeparator.qml")), uri, 1, 0, "TitleSeparator");
 
-    if (useNative()) {
+    if (useNativeMenus()) {
         qmlRegisterType(typeUrl(QStringLiteral("NativeMenu.qml")), uri, 1, 0, "Menu");
         qmlRegisterType(typeUrl(QStringLiteral("NativeMenuBar.qml")), uri, 1, 0, "MenuBar");
         qmlRegisterType(typeUrl(QStringLiteral("NativeMenuItem.qml")), uri, 1, 0, "MenuItem");
@@ -79,6 +87,11 @@ void CellinkControlsPlugin::registerTypes(const char *uri)
         qmlRegisterType(typeUrl(QStringLiteral("QuickMenuItem.qml")), uri, 1, 0, "MenuItem");
         qmlRegisterType(typeUrl(QStringLiteral("QuickMenuSeparator.qml")), uri, 1, 0, "MenuSeparator");
     }
+
+    if (useNativeComboBox())
+        qmlRegisterType(typeUrl(QStringLiteral("NativeComboBox.qml")), uri, 1, 0, "ComboBox");
+    else
+        qmlRegisterType(typeUrl(QStringLiteral("QuickComboBox.qml")), uri, 1, 0, "ComboBox");
 }
 
 QUrl CellinkControlsPlugin::typeUrl(const QString &fileName) const

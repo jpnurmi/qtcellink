@@ -82,6 +82,7 @@ public:
     bool isEnabled() const;
     void setEnabled(bool enabled);
 
+    bool isOpen() const;
     bool isVisible() const;
     void setVisible(bool visible);
 
@@ -96,6 +97,8 @@ public:
 
     QQuickIcon icon() const;
     void setIcon(const QQuickIcon &icon);
+
+    NativeMenuItem *itemAt(int index) const;
 
     Q_INVOKABLE void addItem(NativeMenuItem *item);
     Q_INVOKABLE void insertItem(int index, NativeMenuItem *item);
@@ -112,7 +115,8 @@ public:
     Q_INVOKABLE void clear();
 
 public Q_SLOTS:
-    void popup(QQmlV4Function *args);
+    void open(QQmlV4Function *args);
+    void popup(QQuickItem *targetItem = nullptr, NativeMenuItem *menuItem = nullptr);
     void close();
 
 Q_SIGNALS:
@@ -158,6 +162,7 @@ private:
     bool m_complete = false;
     bool m_enabled = true;
     bool m_visible = true;
+    bool m_open = false;
     int m_minimumWidth = -1;
     QString m_title;
     QFont m_font;

@@ -8,7 +8,6 @@ QT_PRIVATE += core-private gui-private qml-private quick-private quicktemplates2
 DEFINES += QT_NO_CAST_TO_ASCII QT_NO_CAST_FROM_ASCII
 
 AUX_QML_FILES += \
-    $$PWD/ComboBox.qml \
     $$PWD/DoubleSpinBox.qml \
     $$PWD/SplitView.qml \
     $$PWD/TitleSeparator.qml \

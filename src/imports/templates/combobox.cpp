@@ -21,6 +21,8 @@
 ****************************************************************************/
 
 #include "combobox.h"
+#include "nativemenu.h"
+#include "nativemenuitem.h"
 
 #include <QtCore/qregexp.h>
 #include <QtCore/qabstractitemmodel.h>
@@ -88,7 +90,8 @@ public:
     void showPopup();
     void hidePopup(bool accept);
     void togglePopup(bool accept);
-    void popupVisibleChanged();
+    void popupAboutToShow();
+    void popupAboutToHide();
 
     void itemClicked();
     void itemHovered();
@@ -143,7 +146,7 @@ public:
     QQmlInstanceModel *delegateModel = nullptr;
     QQmlComponent *delegate = nullptr;
     QQuickItem *indicator = nullptr;
-    QQuickPopup *popup = nullptr;
+    QObject *popup = nullptr;
 
     struct ExtraData {
         bool editable = false;
@@ -158,13 +161,20 @@ public:
 
 bool ComboBoxPrivate::isPopupVisible() const
 {
-    return popup && popup->isVisible();
+    if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(popup))
+        return quickPopup->isVisible();
+    else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(popup))
+        return nativeMenu->isOpen();
+    return false;
 }
 
 void ComboBoxPrivate::showPopup()
 {
-    if (popup && !popup->isVisible())
-        popup->open();
+    Q_Q(ComboBox);
+    if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(popup))
+        quickPopup->open();
+    else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(popup))
+        nativeMenu->popup(q, nativeMenu->itemAt(currentIndex));
 }
 
 void ComboBoxPrivate::hidePopup(bool accept)
@@ -174,23 +184,25 @@ void ComboBoxPrivate::hidePopup(bool accept)
         q->setCurrentIndex(highlightedIndex);
         emit q->activated(currentIndex);
     }
-    if (popup && popup->isVisible())
-        popup->close();
+
+    if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(popup))
+        quickPopup->close();
+    else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(popup))
+        nativeMenu->close();
 }
 
 void ComboBoxPrivate::togglePopup(bool accept)
 {
-    if (!popup || !popup->isVisible())
+    if (!isPopupVisible())
         showPopup();
     else
         hidePopup(accept);
 }
 
-void ComboBoxPrivate::popupVisibleChanged()
+void ComboBoxPrivate::popupAboutToShow()
 {
     Q_Q(ComboBox);
-    if (isPopupVisible())
-        QGuiApplication::inputMethod()->reset();
+    QGuiApplication::inputMethod()->reset();
 
     QQuickItemView *itemView = popup->findChild<QQuickItemView *>();
     if (itemView)
@@ -202,7 +214,16 @@ void ComboBoxPrivate::popupVisibleChanged()
         itemView->positionViewAtIndex(highlightedIndex, QQuickItemView::Beginning);
 
     if (!hasDown) {
-        q->setDown(pressed || isPopupVisible());
+        q->setDown(true);
+        hasDown = false;
+    }
+}
+
+void ComboBoxPrivate::popupAboutToHide()
+{
+    Q_Q(ComboBox);
+    if (!hasDown) {
+        q->setDown(pressed);
         hasDown = false;
     }
 }
@@ -239,20 +260,23 @@ void ComboBoxPrivate::itemHovered()
 void ComboBoxPrivate::createdItem(int index, QObject *object)
 {
     Q_Q(ComboBox);
-    QQuickItem *item = qobject_cast<QQuickItem *>(object);
-    if (item && !item->parentItem()) {
-        if (popup)
-            item->setParentItem(popup->contentItem());
-        else
-            item->setParentItem(q);
-        QQuickItemPrivate::get(item)->setCulled(true);
+    if (QQuickItem *quickItem = qobject_cast<QQuickItem *>(object)) {
+        if (!quickItem->parentItem()) {
+            if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(popup))
+                quickItem->setParentItem(quickPopup->contentItem());
+            else
+                quickItem->setParentItem(q);
+            QQuickItemPrivate::get(quickItem)->setCulled(true);
+        }
     }
 
-    QQuickAbstractButton *button = qobject_cast<QQuickAbstractButton *>(object);
-    if (button) {
-        button->setFocusPolicy(Qt::NoFocus);
-        connect(button, &QQuickAbstractButton::clicked, this, &ComboBoxPrivate::itemClicked);
-        connect(button, &QQuickAbstractButton::hoveredChanged, this, &ComboBoxPrivate::itemHovered);
+    if (QQuickAbstractButton *quickButton = qobject_cast<QQuickAbstractButton *>(object)) {
+        quickButton->setFocusPolicy(Qt::NoFocus);
+        connect(quickButton, &QQuickAbstractButton::clicked, this, &ComboBoxPrivate::itemClicked);
+        connect(quickButton, &QQuickAbstractButton::hoveredChanged, this, &ComboBoxPrivate::itemHovered);
+    } else if (NativeMenuItem *nativeItem = qobject_cast<NativeMenuItem *>(object)) {
+        connect(nativeItem, &NativeMenuItem::triggered, this, &ComboBoxPrivate::itemClicked);
+        connect(nativeItem, &NativeMenuItem::hovered, this, &ComboBoxPrivate::itemHovered);
     }
 
     if (index == currentIndex && !q->isEditable())
@@ -397,7 +421,7 @@ void ComboBoxPrivate::decrementCurrentIndex()
 
 void ComboBoxPrivate::updateHighlightedIndex()
 {
-    setHighlightedIndex(popup->isVisible() ? currentIndex : -1, NoHighlight);
+    setHighlightedIndex(isPopupVisible() ? currentIndex : -1, NoHighlight);
 }
 
 void ComboBoxPrivate::setHighlightedIndex(int index, Highlighting highlight)
@@ -561,9 +585,12 @@ ComboBox::~ComboBox()
 {
     Q_D(ComboBox);
     if (d->popup) {
-        // Disconnect visibleChanged() to avoid a spurious highlightedIndexChanged() signal
+        // Disconnect aboutToHide() to avoid a spurious highlightedIndexChanged() signal
         // emission during the destruction of the (visible) popup. (QTBUG-57650)
-        QObjectPrivate::disconnect(d->popup, &QQuickPopup::visibleChanged, d, &ComboBoxPrivate::popupVisibleChanged);
+        if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(d->popup))
+            QObjectPrivate::disconnect(quickPopup, &QQuickPopup::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
+        else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(d->popup))
+            QObjectPrivate::disconnect(nativeMenu, &NativeMenu::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
         delete d->popup;
         d->popup = nullptr;
     }
@@ -744,29 +771,42 @@ void ComboBox::setIndicator(QQuickItem *indicator)
     emit indicatorChanged();
 }
 
-QQuickPopup *ComboBox::popup() const
+QObject *ComboBox::popup() const
 {
     Q_D(const ComboBox);
     return d->popup;
 }
 
-void ComboBox::setPopup(QQuickPopup *popup)
+void ComboBox::setPopup(QObject *popup)
 {
     Q_D(ComboBox);
     if (d->popup == popup)
         return;
 
     if (d->popup) {
-        QObjectPrivate::disconnect(d->popup, &QQuickPopup::visibleChanged, d, &ComboBoxPrivate::popupVisibleChanged);
+        if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(d->popup)) {
+            QObjectPrivate::disconnect(quickPopup, &QQuickPopup::aboutToShow, d, &ComboBoxPrivate::popupAboutToShow);
+            QObjectPrivate::disconnect(quickPopup, &QQuickPopup::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
+        } else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(d->popup)) {
+            QObjectPrivate::disconnect(nativeMenu, &NativeMenu::aboutToShow, d, &ComboBoxPrivate::popupAboutToShow);
+            QObjectPrivate::disconnect(nativeMenu, &NativeMenu::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
+        }
         delete d->popup;
     }
     if (popup) {
-        QQuickPopupPrivate::get(popup)->allowVerticalFlip = true;
-        popup->setClosePolicy(QQuickPopup::CloseOnEscape | QQuickPopup::CloseOnPressOutsideParent);
-        QObjectPrivate::connect(popup, &QQuickPopup::visibleChanged, d, &ComboBoxPrivate::popupVisibleChanged);
+        if (QQuickPopup *quickPopup = qobject_cast<QQuickPopup *>(popup)) {
+            QQuickPopupPrivate::get(quickPopup)->allowVerticalFlip = true;
+            quickPopup->setClosePolicy(QQuickPopup::CloseOnEscape | QQuickPopup::CloseOnPressOutsideParent);
 
-        if (QQuickItemView *itemView = popup->findChild<QQuickItemView *>())
-            itemView->setHighlightRangeMode(QQuickItemView::NoHighlightRange);
+            QObjectPrivate::connect(quickPopup, &QQuickPopup::aboutToShow, d, &ComboBoxPrivate::popupAboutToShow);
+            QObjectPrivate::connect(quickPopup, &QQuickPopup::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
+
+            if (QQuickItemView *itemView = quickPopup->findChild<QQuickItemView *>())
+                itemView->setHighlightRangeMode(QQuickItemView::NoHighlightRange);
+        } else if (NativeMenu *nativeMenu = qobject_cast<NativeMenu *>(popup)) {
+            QObjectPrivate::connect(nativeMenu, &NativeMenu::aboutToShow, d, &ComboBoxPrivate::popupAboutToShow);
+            QObjectPrivate::connect(nativeMenu, &NativeMenu::aboutToHide, d, &ComboBoxPrivate::popupAboutToHide);
+        }
     }
     d->popup = popup;
     emit popupChanged();
@@ -1011,8 +1051,9 @@ void ComboBox::focusOutEvent(QFocusEvent *event)
 {
     Q_D(ComboBox);
     QQuickControl::focusOutEvent(event);
-    d->hidePopup(false);
-    setPressed(false);
+    if (qobject_cast<QQuickPopup *>(d->popup))
+        d->hidePopup(false);
+    setPressed(d->isPopupVisible());
 }
 
 #if QT_CONFIG(im)
